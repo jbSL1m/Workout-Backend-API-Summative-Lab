@@ -7,6 +7,9 @@ from sqlalchemy.exc import IntegrityError
 from models import Exercise, Workout, WorkoutExercise, db
 
 
+# The tests call the real routes through the fake client and check the status codes and JSON.
+# Helper functions below create data through the API, so each test starts with the same setup.
+# This helper creates an exercise and asserts it was created, so tests can rely on it.
 def make_exercise(client, name='Squat', category='strength', equipment_needed=False):
     response = client.post('/exercises', json={
         'name': name,
@@ -17,6 +20,7 @@ def make_exercise(client, name='Squat', category='strength', equipment_needed=Fa
     return response.get_json()
 
 
+# Helper that creates a workout through POST /workouts. Notes are always 'Leg day' here.
 def make_workout(client, duration_minutes=45):
     response = client.post('/workouts', json={
         'date': '2026-10-24',
@@ -27,7 +31,9 @@ def make_workout(client, duration_minutes=45):
     return response.get_json()
 
 
+# Each class groups tests for one resource. Test names describe what the test checks.
 class TestExercises:
+    # Create an exercise, then read it back by id.
     def test_creates_and_views_exercise(self, client):
         exercise = make_exercise(client)
         assert exercise['name'] == 'Squat'
@@ -36,6 +42,7 @@ class TestExercises:
         assert response.status_code == 200
         assert response.get_json()['category'] == 'strength'
 
+    # A blank name passes the length check, so the custom validator in the schema must catch it.
     def test_schema_rejects_blank_name(self, client):
         response = client.post('/exercises', json={
             'name': '   ', 'category': 'strength', 'equipment_needed': False,
@@ -43,6 +50,7 @@ class TestExercises:
         assert response.status_code == 400
         assert 'name' in response.get_json()['errors']
 
+    # The database has a UNIQUE rule on name. The second insert breaks it, and the app returns 409.
     def test_duplicate_name_violates_unique_constraint(self, client):
         make_exercise(client, name='Plank')
         response = client.post('/exercises', json={
@@ -50,16 +58,19 @@ class TestExercises:
         })
         assert response.status_code == 409
 
+    # pytest.raises(ValueError) passes only if the block raises a ValueError. This checks the model's own check.
     def test_model_rejects_non_boolean_equipment(self, app):
         with pytest.raises(ValueError):
             Exercise(name='Row', category='cardio', equipment_needed='yes')
 
+    # Deleting an exercise that has no entries should just remove it.
     def test_deletes_unused_exercise(self, client):
         exercise = make_exercise(client)
         response = client.delete(f"/exercises/{exercise['id']}")
         assert response.status_code == 200
         assert client.get(f"/exercises/{exercise['id']}").status_code == 404
 
+    # Cascade check: deleting the exercise also deletes its entries, but the workout itself stays.
     def test_deleting_exercise_removes_its_workout_entries(self, client):
         exercise = make_exercise(client)
         workout = make_workout(client)
@@ -76,6 +87,7 @@ class TestExercises:
         assert remaining.get_json()['workout_exercises'] == []
 
 
+# Workout tests cover the same three kinds of checks: the endpoint, the schema, and the model and database.
 class TestWorkouts:
     def test_creates_and_views_workout(self, client):
         workout = make_workout(client)
@@ -83,6 +95,7 @@ class TestWorkouts:
         assert response.status_code == 200
         assert response.get_json()['date'] == '2026-10-24'
 
+    # The schema checks the number before the model or database sees it.
     def test_schema_rejects_zero_duration(self, client):
         response = client.post('/workouts', json={
             'date': '2026-10-24', 'duration_minutes': 0,
@@ -91,9 +104,12 @@ class TestWorkouts:
         assert 'duration_minutes' in response.get_json()['errors']
 
     def test_model_rejects_zero_duration(self, app):
+        # The model's own check should raise ValueError, even without going through the API.
         with pytest.raises(ValueError):
             Workout(date=date(2026, 10, 24), duration_minutes=0)
 
+    # This test writes raw SQL, which skips the Python checks. Only the database CHECK rule can stop it.
+    # db.session.rollback() undoes the failed insert so later tests are not affected.
     def test_database_rejects_zero_duration(self, app):
         with pytest.raises(IntegrityError):
             db.session.execute(text(
@@ -101,6 +117,7 @@ class TestWorkouts:
             ))
         db.session.rollback()
 
+    # Deleting a workout should also delete its entries. The exercise is kept, because it is not part of the workout.
     def test_delete_workout_removes_its_exercise_entries(self, client):
         exercise = make_exercise(client)
         workout = make_workout(client)
@@ -117,6 +134,7 @@ class TestWorkouts:
         assert client.get('/workouts/999').status_code == 404
 
 
+# Entry tests: adding an exercise to a workout through the nested URL.
 class TestWorkoutExercises:
     def test_adds_exercise_to_workout(self, client):
         exercise = make_exercise(client)
@@ -131,6 +149,7 @@ class TestWorkoutExercises:
         assert entries[0]['reps'] == 10
         assert entries[0]['exercise_id'] == exercise['id']
 
+    # @pytest.mark.parametrize runs the same test once for each row: field name and bad value.
     @pytest.mark.parametrize('field, value', [
         ('reps', 0), ('sets', 0), ('duration_seconds', -5),
     ])
@@ -154,6 +173,7 @@ class TestWorkoutExercises:
         )
         assert response.status_code == 404
 
+    # Raw SQL bypasses the Python checks, so this test proves the database CHECK on reps also works.
     def test_database_rejects_non_positive_reps(self, app, client):
         exercise = make_exercise(client)
         workout = make_workout(client)

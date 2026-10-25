@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 
+# Seed script: fills the database with sample data so you can try the API.
+# Run it after the migrations, with: pipenv run python seed.py
+
 from datetime import date
 
 from app import app
 from models import db, Exercise, Workout, WorkoutExercise
 
+# The app context lets this script use the database, just as a web request would.
 with app.app_context():
 
     # Clear existing rows so running this script again creates the same sample data.
@@ -12,6 +16,7 @@ with app.app_context():
     Workout.query.delete()
     Exercise.query.delete()
 
+    # A dictionary maps each exercise name to its object, so entries below can look one up by name.
     exercises = {
         'Push-up': Exercise(name='Push-up', category='strength', equipment_needed=False),
         'Barbell Squat': Exercise(name='Barbell Squat', category='strength', equipment_needed=True),
@@ -21,9 +26,11 @@ with app.app_context():
         'Treadmill Run': Exercise(name='Treadmill Run', category='cardio', equipment_needed=True),
         'Cat-Cow Stretch': Exercise(name='Cat-Cow Stretch', category='flexibility', equipment_needed=False),
     }
+    # add_all stages every exercise. commit saves them to the database in one step.
     db.session.add_all(exercises.values())
     db.session.commit()
 
+    # Three workouts, each with a date, a length in minutes, and notes.
     full_body = Workout(date=date(2026, 10, 19), duration_minutes=45, notes='Full body strength')
     core_cardio = Workout(date=date(2026, 10, 21), duration_minutes=30, notes='Core and cardio')
     quick_run = Workout(date=date(2026, 10, 23), duration_minutes=25, notes='Easy recovery run')
@@ -47,5 +54,6 @@ with app.app_context():
     WorkoutExercise(workout=quick_run, exercise=exercises['Treadmill Run'],
                     reps=1, sets=1, duration_seconds=1200)
 
+    # Saving the workouts also saves their entries, because each entry is linked to its workout.
     db.session.add_all([full_body, core_cardio, quick_run])
     db.session.commit()
