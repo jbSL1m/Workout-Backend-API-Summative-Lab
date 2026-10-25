@@ -21,7 +21,7 @@ class ExerciseSchema(Schema):
 class WorkoutExerciseSchema(Schema):
     id = fields.Int(dump_only=True)
     workout_id = fields.Int(dump_only=True)
-    exercise_id = fields.Int(required=True, validate=validate.Range(min=1))
+    exercise_id = fields.Int(dump_only=True)
     reps = fields.Int(required=True, validate=validate.Range(min=1, max=10000))
     sets = fields.Int(required=True, validate=validate.Range(min=1, max=100))
     duration_seconds = fields.Int(required=True, validate=validate.Range(min=1, max=86400))

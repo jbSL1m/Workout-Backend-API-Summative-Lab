@@ -4,7 +4,7 @@ import os
 
 from flask import Flask, jsonify, request
 from flask_migrate import Migrate
-from marshmallow import ValidationError
+from marshmallow import EXCLUDE, ValidationError
 from sqlalchemy.exc import IntegrityError
 
 from models import db, Exercise, Workout, WorkoutExercise
@@ -81,9 +81,6 @@ def delete_exercise(exercise_id):
     exercise, error = _get_or_404(Exercise, exercise_id, 'Exercise')
     if error:
         return error
-    # Workouts may not lose an exercise, so an exercise in use cannot be deleted.
-    if exercise.workout_exercises:
-        return jsonify({'error': 'Exercise is used in one or more workouts and cannot be deleted'}), 409
     db.session.delete(exercise)
     db.session.commit()
     return jsonify({'message': 'Exercise deleted'}), 200
@@ -122,16 +119,17 @@ def delete_workout(workout_id):
     return jsonify({'message': 'Workout deleted'}), 200
 
 
-@app.post('/workouts/<int:workout_id>/exercises')
-def add_exercise_to_workout(workout_id):
+@app.post('/workouts/<int:workout_id>/exercises/<int:exercise_id>/workout_exercises')
+def add_exercise_to_workout(workout_id, exercise_id):
     workout, error = _get_or_404(Workout, workout_id, 'Workout')
     if error:
         return error
-    data = workout_exercise_schema.load(_json_body())
-    _, error = _get_or_404(Exercise, data['exercise_id'], 'Exercise')
+    exercise, error = _get_or_404(Exercise, exercise_id, 'Exercise')
     if error:
         return error
-    workout_exercise = WorkoutExercise(workout=workout, **data)
+    # The path identifies the workout and exercise, so body values for those are ignored.
+    data = workout_exercise_schema.load(_json_body(), unknown=EXCLUDE)
+    workout_exercise = WorkoutExercise(workout=workout, exercise=exercise, **data)
     db.session.add(workout_exercise)
     db.session.commit()
     return jsonify(workout_schema.dump(workout)), 201

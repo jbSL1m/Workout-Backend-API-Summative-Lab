@@ -79,9 +79,9 @@ pipenv run pytest
 | GET | `/exercises` | List exercises |
 | POST | `/exercises` | Create an exercise |
 | GET | `/exercises/<id>` | View an exercise |
-| DELETE | `/exercises/<id>` | Delete an exercise (409 if it is used in a workout) |
+| DELETE | `/exercises/<id>` | Delete an exercise and its workout entries |
 | GET | `/workouts` | List workouts |
 | POST | `/workouts` | Create a workout |
 | GET | `/workouts/<id>` | View a workout with its exercises |
 | DELETE | `/workouts/<id>` | Delete a workout and its exercise entries |
-| POST | `/workouts/<id>/exercises` | Add an exercise to a workout |
+| POST | `/workouts/<id>/exercises/<exercise_id>/workout_exercises` | Add an exercise to a workout with `reps`, `sets`, and `duration_seconds` |

@@ -38,7 +38,14 @@ class Exercise(db.Model):
     category = db.Column(db.String, nullable=False)
     equipment_needed = db.Column(db.Boolean, nullable=False, default=False)
 
-    workout_exercises = db.relationship('WorkoutExercise', back_populates='exercise')
+    # Deleting an exercise deletes its workout entries as well.
+    workout_exercises = db.relationship(
+        'WorkoutExercise',
+        back_populates='exercise',
+        cascade='all, delete-orphan',
+    )
+    # Read-only: add entries through WorkoutExercise so reps, sets, and duration are set.
+    workouts = db.relationship('Workout', secondary='workout_exercises', viewonly=True)
 
     @validates('name')
     def validate_name(self, key, value):
@@ -75,6 +82,7 @@ class Workout(db.Model):
         back_populates='workout',
         cascade='all, delete-orphan',
     )
+    exercises = db.relationship('Exercise', secondary='workout_exercises', viewonly=True)
 
     @validates('date')
     def validate_date(self, key, value):

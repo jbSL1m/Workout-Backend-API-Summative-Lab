@@ -60,14 +60,20 @@ class TestExercises:
         assert response.status_code == 200
         assert client.get(f"/exercises/{exercise['id']}").status_code == 404
 
-    def test_refuses_to_delete_exercise_used_in_workout(self, client):
+    def test_deleting_exercise_removes_its_workout_entries(self, client):
         exercise = make_exercise(client)
         workout = make_workout(client)
-        client.post(f"/workouts/{workout['id']}/exercises", json={
-            'exercise_id': exercise['id'], 'reps': 10, 'sets': 3, 'duration_seconds': 120,
-        })
+        setup = client.post(
+            f"/workouts/{workout['id']}/exercises/{exercise['id']}/workout_exercises",
+            json={'reps': 10, 'sets': 3, 'duration_seconds': 120},
+        )
+        assert setup.status_code == 201
         response = client.delete(f"/exercises/{exercise['id']}")
-        assert response.status_code == 409
+        assert response.status_code == 200
+        assert client.get(f"/exercises/{exercise['id']}").status_code == 404
+        remaining = client.get(f"/workouts/{workout['id']}")
+        assert remaining.status_code == 200
+        assert remaining.get_json()['workout_exercises'] == []
 
 
 class TestWorkouts:
@@ -98,9 +104,11 @@ class TestWorkouts:
     def test_delete_workout_removes_its_exercise_entries(self, client):
         exercise = make_exercise(client)
         workout = make_workout(client)
-        client.post(f"/workouts/{workout['id']}/exercises", json={
-            'exercise_id': exercise['id'], 'reps': 8, 'sets': 4, 'duration_seconds': 60,
-        })
+        setup = client.post(
+            f"/workouts/{workout['id']}/exercises/{exercise['id']}/workout_exercises",
+            json={'reps': 8, 'sets': 4, 'duration_seconds': 60},
+        )
+        assert setup.status_code == 201
         assert client.delete(f"/workouts/{workout['id']}").status_code == 200
         assert WorkoutExercise.query.count() == 0
         assert Exercise.query.count() == 1
@@ -113,9 +121,10 @@ class TestWorkoutExercises:
     def test_adds_exercise_to_workout(self, client):
         exercise = make_exercise(client)
         workout = make_workout(client)
-        response = client.post(f"/workouts/{workout['id']}/exercises", json={
-            'exercise_id': exercise['id'], 'reps': 10, 'sets': 3, 'duration_seconds': 90,
-        })
+        response = client.post(
+            f"/workouts/{workout['id']}/exercises/{exercise['id']}/workout_exercises",
+            json={'reps': 10, 'sets': 3, 'duration_seconds': 90},
+        )
         assert response.status_code == 201
         entries = response.get_json()['workout_exercises']
         assert len(entries) == 1
@@ -128,17 +137,21 @@ class TestWorkoutExercises:
     def test_schema_rejects_non_positive_values(self, client, field, value):
         exercise = make_exercise(client)
         workout = make_workout(client)
-        body = {'exercise_id': exercise['id'], 'reps': 10, 'sets': 3, 'duration_seconds': 90}
+        body = {'reps': 10, 'sets': 3, 'duration_seconds': 90}
         body[field] = value
-        response = client.post(f"/workouts/{workout['id']}/exercises", json=body)
+        response = client.post(
+            f"/workouts/{workout['id']}/exercises/{exercise['id']}/workout_exercises",
+            json=body,
+        )
         assert response.status_code == 400
         assert field in response.get_json()['errors']
 
     def test_unknown_exercise_returns_404(self, client):
         workout = make_workout(client)
-        response = client.post(f"/workouts/{workout['id']}/exercises", json={
-            'exercise_id': 999, 'reps': 10, 'sets': 3, 'duration_seconds': 90,
-        })
+        response = client.post(
+            f"/workouts/{workout['id']}/exercises/999/workout_exercises",
+            json={'reps': 10, 'sets': 3, 'duration_seconds': 90},
+        )
         assert response.status_code == 404
 
     def test_database_rejects_non_positive_reps(self, app, client):
