@@ -55,3 +55,33 @@ duration_seconds (integer)
 
 
 
+
+## Getting Started
+
+```bash
+pipenv install --dev
+cd server
+pipenv run flask --app app db upgrade   # create the database tables
+pipenv run python seed.py               # optional: load sample exercises and workouts
+pipenv run flask --app app run --port 5555
+```
+
+Run the tests from the `server/` directory:
+
+```bash
+pipenv run pytest
+```
+
+### Endpoints
+
+| Method | Path | Description |
+| ------ | ---- | ----------- |
+| GET | `/exercises` | List exercises |
+| POST | `/exercises` | Create an exercise |
+| GET | `/exercises/<id>` | View an exercise |
+| DELETE | `/exercises/<id>` | Delete an exercise (409 if it is used in a workout) |
+| GET | `/workouts` | List workouts |
+| POST | `/workouts` | Create a workout |
+| GET | `/workouts/<id>` | View a workout with its exercises |
+| DELETE | `/workouts/<id>` | Delete a workout and its exercise entries |
+| POST | `/workouts/<id>/exercises` | Add an exercise to a workout |
